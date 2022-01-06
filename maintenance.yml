@@ -1,0 +1,35 @@
+---
+- hosts: webservers
+  remote_user: root
+
+  tasks:
+
+    - name: Update Packages
+      ansible.builtin.apt:
+        autoclean: true
+        autoremove: true
+        state: latest
+        update_cache: true
+        upgrade: dist
+
+    - name: Update Composer
+      changed_when: "'You are already using the latest' not in composer_updated.stdout"
+      community.general.composer:
+        working_dir: /usr/local/bin
+        command: self-update
+      register: composer_updated
+
+    - name: Check Disk Space
+      ansible.builtin.shell: "df -h /|grep -v Filesystem|awk '{print $4}'|cut -d G -f1"
+      changed_when: false
+      failed_when: available_space.stdout|float < 5
+      register: available_space
+
+    - name: Reboot Server
+      ansible.builtin.reboot:
+      changed_when: false
+
+    - name: Check Server Status
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}"
+        status_code: 200

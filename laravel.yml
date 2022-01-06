@@ -1,0 +1,74 @@
+---
+- hosts: webservers
+  remote_user: root
+
+  roles:
+
+    - initial-server-setup
+    - mysql
+    - nginx
+    - php
+    - composer
+
+  tasks:
+
+    - name: Install Additional PHP Packages
+      ansible.builtin.apt:
+        name: "{{ php.additional_packages }}"
+        state: latest
+      notify: Reload PHP Configuration
+      when: php.additional_packages is iterable
+
+    - name: Create Site Configuration
+      ansible.builtin.template:
+        dest: "/etc/nginx/sites-available/{{ domain_name }}.conf"
+        src: templates/nginx-laravel.conf.j2
+      notify: Reload NGINX Configuration
+
+    - name: Enable Site
+      ansible.builtin.file:
+        dest: "/etc/nginx/sites-enabled/{{ domain_name }}.conf"
+        src: "/etc/nginx/sites-available/{{ domain_name }}.conf"
+        state: link
+      notify: Reload NGINX Configuration
+
+    - name: Create Site Folder
+      ansible.builtin.file:
+        group: "{{ username }}"
+        owner: "{{ username }}"
+        path: "/var/www/{{ domain_name }}/shared"
+        recurse: true
+        state: directory
+
+    - name: Create .env File
+      ansible.builtin.file:
+        group: "{{ username }}"
+        owner: "{{ username }}"
+        path: "/var/www/{{ domain_name }}/shared/.env"
+        state: touch
+
+    - name: Public SSH Key - Read
+      ansible.builtin.shell: "cat /home/{{ username }}/.ssh/id_rsa.pub"
+      register: public_ssh_key
+
+    - name: Public SSH Key - Print
+      ansible.builtin.debug:
+        msg: "{{ public_ssh_key.stdout }}"
+
+    - name: Configure Cron
+      ansible.builtin.cron:
+        job: "cd /var/www/{{ domain_name }}/current && php artisan schedule:run >> /dev/null 2>&1"
+        name: "{{ domain_name }}"
+        user: www-data
+
+  post_tasks:
+
+    - name: Configure Let’s Encrypt
+      ansible.builtin.include_role:
+        name: letsencrypt-nginx
+      when: nginx.use_ssl
+
+    - name: Configure Supervisor
+      ansible.builtin.include_role:
+        name: supervisor-laravel
+      when: laravel.use_supervisor

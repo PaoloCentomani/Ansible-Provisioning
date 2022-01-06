@@ -1,0 +1,46 @@
+---
+- name: Install NGINX
+  ansible.builtin.apt:
+    name: nginx
+    state: latest
+
+- name: Find NGINX Max Connections Per Worker
+  ansible.builtin.shell: ulimit -n
+  changed_when: false
+  register: nginx_workers
+
+- name: Configure NGINX
+  ansible.builtin.replace:
+    path: /etc/nginx/nginx.conf
+    regexp: "{{ item.search }}"
+    replace: "{{ item.replace }}"
+  loop:
+    - { search: "worker_connections 768;", replace: "worker_connections {{ nginx_workers }};" }
+    - { search: "keepalive_timeout 65;", replace: "keepalive_timeout 30;" }
+    - { search: "# gzip_proxied any;", replace: "gzip_proxied any;" }
+    - { search: "# gzip_comp_level 6;", replace: "gzip_comp_level 4;" }
+    - { search: "# gzip_types", replace: "gzip_types" }
+    - { search: "# server_tokens off;", replace: "server_tokens off;\n\n\tclient_max_body_size 16m;" }
+  notify: Reload NGINX Configuration
+
+- name: Update UFW
+  community.general.ufw:
+    name: "Nginx Full"
+    rule: allow
+
+- name: Update Fail2Ban
+  ansible.builtin.blockinfile:
+    block: |
+      [nginx-botsearch]
+      enabled = true
+
+      [nginx-http-auth]
+      enabled = true
+    path: /etc/fail2ban/jail.local
+  notify: Reload Fail2Ban Configuration
+
+- name: Update /etc/hosts
+  ansible.builtin.lineinfile:
+    line: "127.0.0.1 localhost {{ domain_name }}"
+    path: /etc/hosts
+    search_string: "127.0.0.1 localhost"

@@ -1,0 +1,35 @@
+---
+- name: Install MySQL
+  ansible.builtin.apt:
+    name:
+      - mysql-server
+      - python3-pymysql
+    state: latest
+
+- name: Reset MySQL Root Password
+  community.mysql.mysql_user:
+    check_implicit_admin: true
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    host: localhost
+    name: root
+    password: "{{ mysql.root_password }}"
+
+- name: Configure ~/.my.cnf
+  ansible.builtin.blockinfile:
+    create: true
+    block: |
+      [client]
+      user=root
+      password={{ mysql.root_password }}
+    path: /root/.my.cnf
+
+- name: Create Database
+  community.mysql.mysql_db:
+    name: "{{ laravel.database.name }}"
+    encoding: utf8mb4
+
+- name: Create Database User
+  community.mysql.mysql_user:
+    name: "{{ laravel.database.username }}"
+    password: "{{ laravel.database.password }}"
+    priv: "{{ laravel.database.name }}.*:ALL"

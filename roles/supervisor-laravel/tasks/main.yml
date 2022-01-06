@@ -1,0 +1,31 @@
+---
+- name: Install Supervisor
+  ansible.builtin.apt:
+    name: supervisor
+    state: latest
+
+- name: Configure Supervisor
+  ansible.builtin.template:
+    dest: "/etc/supervisor/conf.d/{{ domain_name }}-worker.conf"
+    src: templates/worker.conf.j2
+
+- name: Apply Configuration
+  community.general.supervisorctl:
+    name: all
+    state: present
+
+- name: Restart Supervisor
+  community.general.supervisorctl:
+    name: all
+    state: restarted
+
+- name: Enable Queues
+  ansible.builtin.lineinfile:
+    line: "QUEUE_CONNECTION=database"
+    path: "/var/www/{{ domain_name }}/shared/.env"
+    search_string: "QUEUE_CONNECTION=sync"
+
+- name: Cache Config
+  become: true
+  become_user: "{{ username }}"
+  shell: "cd /var/www/{{ domain_name }}/current && php artisan config:cache"

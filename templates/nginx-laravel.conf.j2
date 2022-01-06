@@ -1,0 +1,47 @@
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name {{ domain_name }}{{ ' www.' + domain_name if nginx.use_www }};
+
+    root /var/www/{{ domain_name }}/current/public;
+    index index.php;
+
+    error_page 404 /index.php;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+    charset utf-8;
+
+    access_log /var/log/nginx/{{ domain_name }}-access.log;
+    error_log /var/log/nginx/{{ domain_name }}-error.log;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php{{ php.version }}-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    location ~* \.(css|js)$ {
+        expires 1m;
+        access_log off;
+        add_header Cache-Control "public";
+    }
+
+    location ~* \.(jpg|jpeg|png|gif|ico|svg|woff|woff2)$ {
+        expires 6m;
+        access_log off;
+        add_header Cache-Control "public";
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+}

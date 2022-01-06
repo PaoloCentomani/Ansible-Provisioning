@@ -1,0 +1,40 @@
+---
+- name: Add Custom PHP Repository
+  ansible.builtin.apt_repository:
+    repo: ppa:ondrej/php
+  when: php.version is version('8', '>=')
+
+- name: Install PHP
+  ansible.builtin.apt:
+    name:
+      - "php{{ php.version }}-bcmath"
+      - "php{{ php.version }}-curl"
+      - "php{{ php.version }}-fpm"
+      - "php{{ php.version }}-intl"
+      - "php{{ php.version }}-mbstring"
+      - "php{{ php.version }}-mysql"
+      - "php{{ php.version }}-tokenizer"
+      - "php{{ php.version }}-xml"
+      - "php{{ php.version }}-zip"
+      - unzip
+    state: latest
+
+- name: Configure PHP - CLI
+  ansible.builtin.replace:
+    path: "/etc/php/{{ php.version }}/cli/php.ini"
+    regexp: "{{ item.search }}"
+    replace: "{{ item.replace }}"
+  loop:
+    - { search: ";date.timezone =", replace: "date.timezone = Europe/Rome" }
+  notify: Reload PHP Configuration
+
+- name: Configure PHP - FPM
+  ansible.builtin.replace:
+    path: "/etc/php/{{ php.version }}/fpm/php.ini"
+    regexp: "{{ item.search }}"
+    replace: "{{ item.replace }}"
+  loop:
+    - { search: "upload_max_filesize = 2M", replace: "upload_max_filesize = 16M" }
+    - { search: "post_max_size = 8M", replace: "post_max_size = 16M" }
+    - { search: ";date.timezone =", replace: "date.timezone = Europe/Rome" }
+  notify: Reload PHP Configuration

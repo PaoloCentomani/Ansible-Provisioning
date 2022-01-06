@@ -1,0 +1,21 @@
+---
+domain_name: example.net
+host_name: example.net
+ip:
+  v4: 123.123.123.123
+  v6: 1234:1234:0:00::1234:0
+laravel:
+  database:
+    name: example
+    password: password
+    username: example
+  use_supervisor: false
+mysql:
+  root_password: password
+nginx:
+  use_ssl: true
+  use_www: false
+php:
+  additional_packages: []
+  version: 8.1
+username: example

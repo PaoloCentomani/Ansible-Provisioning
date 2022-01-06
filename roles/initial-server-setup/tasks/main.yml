@@ -1,0 +1,113 @@
+---
+- name: Configure Automatic Upgrades
+  ansible.builtin.lineinfile:
+    line: APT::Periodic::AutocleanInterval "7";
+    path: /etc/apt/apt.conf.d/20auto-upgrades
+
+- name: Set Hostname
+  ansible.builtin.hostname:
+    name: "{{ host_name }}"
+
+- name: Update /etc/hosts
+  ansible.builtin.blockinfile:
+    block: |
+      {{ ip.v4 }} {{ host_name }}
+      {{ ip.v6 }} {{ host_name }}
+    path: /etc/hosts
+
+- name: Configure Locale
+  community.general.locale_gen:
+    name: it_IT.UTF-8
+
+- name: Configure Timezone
+  community.general.timezone:
+    name: Europe/Rome
+
+- name: Create User
+  ansible.builtin.user:
+    append: true
+    groups: sudo
+    name: "{{ username }}"
+    shell: /bin/bash
+
+- name: Allow Sudo With No Password
+  ansible.builtin.lineinfile:
+    create: true
+    line: "{{ username }} ALL=(ALL) NOPASSWD: ALL"
+    mode: 0440
+    path: "/etc/sudoers.d/{{ username }}"
+    validate: /usr/sbin/visudo -cf %s
+
+- name: Generate SSH Keys
+  community.crypto.openssh_keypair:
+    path: /root/.ssh/id_rsa
+
+- name: Copy SSH Keys To User
+  ansible.posix.synchronize:
+    dest: "/home/{{ username }}"
+    rsync_opts:
+      - "--chown={{ username }}:{{ username }}"
+    src: /root/.ssh
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Disable Password Authentication
+  ansible.builtin.lineinfile:
+    line: "PasswordAuthentication no"
+    path: /etc/ssh/sshd_config
+    regexp: ".*PasswordAuthentication.*"
+
+- name: Configure UFW
+  community.general.ufw:
+    name: OpenSSH
+    rule: allow
+    state: enabled
+
+- name: Install Fail2Ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: latest
+
+- name: Configure Fail2Ban
+  ansible.builtin.template:
+    dest: /etc/fail2ban/jail.local
+    src: templates/jail.local.j2
+
+- name: Configure Vim
+  ansible.builtin.template:
+    dest: /root/.vimrc
+    src: templates/vimrc.j2
+
+- name: Configure Bash Prompt - Root
+  ansible.builtin.lineinfile:
+    line: export PS1="${debian_chroot:+($debian_chroot)}\[\033[01;31m\]\H\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
+    path: /root/.bashrc
+
+- name: Configure Bash Prompt - User
+  ansible.builtin.lineinfile:
+    line: export PS1="${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\H\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
+    path: "/home/{{ username }}/.bashrc"
+
+- name: Configure Sudo Commands - User
+  ansible.builtin.lineinfile:
+    line: alias sudo="sudo "
+    path: "/home/{{ username }}/.bashrc"
+
+- name: Configure Bash .inputrc
+  ansible.builtin.template:
+    dest: /root/.inputrc
+    src: templates/inputrc.j2
+
+- name: Copy Configuration To User
+  ansible.posix.synchronize:
+    dest: "/home/{{ username }}"
+    rsync_opts:
+      - "--chown={{ username }}:{{ username }}"
+    src: "/root/{{ item }}"
+  delegate_to: "{{ inventory_hostname }}"
+  loop:
+    - .inputrc
+    - .vimrc
+
+- name: Reboot Server
+  ansible.builtin.reboot:
+  changed_when: false

@@ -1,0 +1,22 @@
+---
+- name: Install Let’s Encrypt
+  ansible.builtin.apt:
+    name:
+      - certbot
+      - python3-certbot-nginx
+    state: latest
+
+- name: Install Certificate (www & non-www)
+  ansible.builtin.shell: "certbot --nginx --noninteractive -d {{ domain_name }} -d www.{{ domain_name }} --agree-tos --register-unsafely-without-email"
+  when: nginx.use_www
+
+- name: Install Certificate (non-www only)
+  ansible.builtin.shell: "certbot --nginx --noninteractive -d {{ domain_name }} --agree-tos --register-unsafely-without-email"
+  when: not nginx.use_www
+
+- name: Configure HTTP2
+  ansible.builtin.lineinfile:
+    path: "/etc/nginx/sites-available/{{ domain_name }}.conf"
+    regexp: 443 ssl
+    line: 443 ssl http2
+  notify: Reload NGINX Configuration

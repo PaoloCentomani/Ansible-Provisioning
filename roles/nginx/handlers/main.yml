@@ -1,0 +1,8 @@
+---
+- name: Reload Fail2Ban Configuration
+  ansible.builtin.shell: fail2ban-client reload
+
+- name: Reload NGINX Configuration
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
